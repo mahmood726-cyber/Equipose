@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CardioSynthesizer V5.0: Precision Evidence Engine</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    /* --- Theme: "Hemo-Dynamic V5" --- */
+    :root {
+      --bg-dark: #020204;
+      --bg-panel: #0a0b10;
+      --bg-input: #13151a;
+      --accent: #f87171;        /* Arterial Red (Harm) */
+      --benefit: #34d399;       /* Ischemia Prevention (Green) */
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border: #27272a;
+      --font-sans: 'Inter', sans-serif;
+      --font-serif: 'Merriweather', serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--bg-dark); color: var(--text-main); font-family: var(--font-sans); display: flex; }
+    
+    .app-shell { display: grid; grid-template-columns: 360px 1fr 340px; width: 100%; height: 100%; }
+    
+    .sidebar-left, .sidebar-right { background: var(--bg-panel); display: flex; flex-direction: column; overflow: hidden; z-index: 10; border-color: var(--border); border-style: solid; }
+    .sidebar-left { border-width: 0 1px 0 0; }
+    .sidebar-right { border-width: 0 0 0 1px; }
+    .sidebar-content { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 22px; }
+    
+    .main-stage { padding: 0; display: flex; flex-direction: column; overflow-y: auto; position: relative; scroll-behavior: smooth; background: radial-gradient(circle at 50% 20%, #1a1d26 0%, #020204 60%); }
+
+    /* Persona Buttons */
+    .persona-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .persona-btn { background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); padding: 10px 6px; border-radius: 8px; font-size: 0.7rem; font-weight: 600; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .persona-btn:hover { border-color: var(--benefit); color: #fff; background: rgba(52, 211, 153, 0.05); transform: translateY(-1px); }
+    .persona-btn span { font-size: 14px; }
+
+    /* Controls */
+    .control-group { display: flex; flex-direction: column; gap: 8px; }
+    label { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .val-display { color: #fff; font-family: 'JetBrains Mono', monospace; font-weight: 600; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
+    
+    .toggle-group { display: flex; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; padding: 3px; }
+    .toggle-btn { flex: 1; padding: 8px; text-align: center; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+    .toggle-btn:hover { color: #fff; }
+    .toggle-btn.active { background: rgba(255,255,255,0.1); color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+    
+    /* Anatomical Checks */
+    .check-grid { display: grid; grid-template-columns: 1fr; gap: 8px; background: var(--bg-input); padding: 12px; border-radius: 8px; border: 1px solid var(--border); }
+    .check-item { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--text-muted); cursor: pointer; transition: color 0.2s; }
+    .check-item:hover { color: #fff; }
+    .check-item input { accent-color: var(--benefit); width: 16px; height: 16px; cursor: pointer; }
+    
+    /* Trial List */
+    .trial-list { display: flex; flex-direction: column; gap: 2px; max-height: 200px; overflow-y: auto; padding: 8px; background: var(--bg-input); border-radius: 8px; border: 1px solid var(--border); }
+    .trial-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--text-muted); padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+    .trial-item:hover { background: rgba(255,255,255,0.03); color: #fff; }
+    .trial-item input { margin-right: 8px; accent-color: var(--benefit); }
+    
+    /* Viz Containers */
+    .viz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px; padding: 0 40px; max-width: 1200px; margin: 0 auto; width: 100%; }
+    .full-width { grid-column: 1 / -1; }
+    .viz-container { background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 300px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.3); transition: transform 0.2s, border-color 0.2s; }
+    .viz-container:hover { border-color: #444; }
+    .viz-header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.01); display: flex; justify-content: space-between; align-items: center; }
+    .viz-title { font-family: var(--font-sans); font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    canvas { width: 100%; height: 100%; display: block; flex: 1; }
+
+    /* Inputs */
+    input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; background: #333; border-radius: 2px; outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #e5e5e5; border-radius: 50%; cursor: pointer; border: 2px solid var(--bg-dark); box-shadow: 0 0 0 2px rgba(0,0,0,0.2); }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); background: #fff; }
+    
+    #complexInput { background: linear-gradient(90deg, #222 0%, var(--benefit) 100%); }
+    #scoreInput { background: linear-gradient(90deg, #222 0%, var(--accent) 100%); }
+
+    /* Primary Button */
+    .run-btn { background: var(--text-main); color: var(--bg-dark); border: none; padding: 14px; border-radius: 8px; font-weight: 700; cursor: pointer; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 0.9rem; transition: all 0.2s; box-shadow: 0 4px 12px rgba(255,255,255,0.1); }
+    .run-btn:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(255,255,255,0.2); }
+    .run-btn:active { transform: translateY(0); }
+    .run-btn:disabled { opacity: 0.5; cursor: wait; transform: none; }
+    
+    /* Copy Button */
+    .copy-btn { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; display: flex; align-items: center; gap: 6px; transition: all 0.2s; font-family: var(--font-sans); font-weight: 600; }
+    .copy-btn:hover { border-color: var(--text-main); color: var(--text-main); background: rgba(255,255,255,0.05); }
+
+    /* Metrics */
+    .metric-card { background: var(--bg-input); border-radius: 8px; padding: 16px; border-left: 3px solid var(--border); display: flex; flex-direction: column; gap: 4px; position: relative; overflow: hidden; }
+    .metric-card.pos { border-color: var(--benefit); }
+    .metric-card.pos::after { content:""; position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(90deg, rgba(52, 211, 153, 0.1) 0%, transparent 100%); pointer-events: none; }
+    .metric-card.neg { border-color: var(--accent); }
+    .metric-card.neg::after { content:""; position: absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(90deg, rgba(248, 113, 113, 0.1) 0%, transparent 100%); pointer-events: none; }
+    
+    .m-val { font-size: 1.5rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #fff; z-index: 1; }
+    .m-sub { font-size: 0.75rem; color: #888; z-index: 1; }
+
+    /* Narrative */
+    .narrative-container { padding: 40px 40px 10px 40px; max-width: 1200px; margin: 0 auto; width: 100%; flex-shrink: 0; }
+    .narrative-headline { font-family: var(--font-serif); font-size: 2rem; font-weight: 700; color: #fff; letter-spacing: -0.03em; line-height: 1.1; }
+    .narrative-sub { font-family: var(--font-sans); font-size: 0.95rem; color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-top: 10px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+    
+    /* Guideline Badge */
+    .rec-badge { background: #222; color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid #444; display: inline-flex; align-items: center; gap: 6px; }
+    .rec-badge.c1 { background: var(--benefit); color: #000; border-color: var(--benefit); }
+    .rec-badge.c2a { background: #fbbf24; color: #000; border-color: #fbbf24; }
+    .rec-badge.c2b { background: #f97316; color: #000; border-color: #f97316; }
+    .rec-badge.c3 { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* Report */
+    .report-section { background: var(--bg-panel); border-top: 1px solid var(--border); padding: 50px; margin-top: 20px; }
+    .report-inner { max-width: 800px; margin: 0 auto; font-size: 1rem; line-height: 1.7; color: #d1d5db; }
+    .report-h3 { font-size: 0.85rem; font-weight: 700; color: var(--benefit); text-transform: uppercase; margin: 30px 0 10px 0; letter-spacing: 0.05em; }
+    .highlight { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; color: #fff; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.2); }
+
+    .loader { width: 16px; height: 16px; border: 3px solid rgba(0,0,0,0.2); border-top-color: #000; border-radius: 50%; animation: spin 0.8s linear infinite; display: none; }
+    .run-btn.processing .loader { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 1400px) { .app-shell { grid-template-columns: 320px 1fr; } .sidebar-right { display: none; } }
+    @media (max-width: 900px) { .app-shell { display: block; overflow-y: auto; height: auto; } .main-stage { height: auto; min-height: 100vh; } }
+  </style>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- LEFT: INPUTS -->
+  <aside class="sidebar-left">
+    <div class="sidebar-content">
+      <div style="margin-bottom: 5px;">
+        <h1 style="font-size: 1.2rem; font-weight: 700; color: #fff; letter-spacing: -0.02em;">CardioSynth <span style="color:var(--benefit)">v5.0</span></h1>
+        <p style="font-size: 0.75rem; color: var(--text-muted);">Precision Evidence Engine</p>
+      </div>
+
+      <!-- QUICK SETS -->
+      <div class="control-group">
+        <label>Load Persona</label>
+        <div class="persona-grid">
+          <div class="persona-btn" onclick="setPersona('stemi')">
+            <span>⚡</span> Young STEMI
+          </div>
+          <div class="persona-btn" onclick="setPersona('afib')">
+            <span>🩸</span> Elderly HBR
+          </div>
+          <div class="persona-btn" onclick="setPersona('complex')">
+            <span>🧩</span> Complex CCS
+          </div>
+        </div>
+      </div>
+
+      <!-- STRATEGY -->
+      <div class="control-group">
+        <label>Primary Strategy</label>
+        <div class="toggle-group">
+          <div id="btnShort" class="toggle-btn" onclick="setStrategy('short')">Short DAPT</div>
+          <div id="btnExt" class="toggle-btn active" onclick="setStrategy('extended')">Extended (>12m)</div>
+        </div>
+      </div>
+
+      <!-- INDICATION -->
+      <div class="control-group">
+        <label>Clinical Context</label>
+        <div class="toggle-group">
+          <div id="btnACS" class="toggle-btn active" onclick="setIndication('acs')">ACS (Acute)</div>
+          <div id="btnCCS" class="toggle-btn" onclick="setIndication('ccs')">CCS (Stable)</div>
+        </div>
+      </div>
+
+      <hr style="border:0; border-top:1px solid var(--border); margin: 5px 0;">
+
+      <!-- ANATOMY -->
+      <div class="control-group">
+        <label>
+          Anatomical Complexity
+          <span class="val-display" id="lblComplexScore">Score: 0</span>
+        </label>
+        <div class="check-grid" id="anatomyGrid">
+          <label class="check-item"><input type="checkbox" value="30" onchange="calcComplexity()"> Left Main Disease</label>
+          <label class="check-item"><input type="checkbox" value="20" onchange="calcComplexity()"> Bifurcation (2-stent)</label>
+          <label class="check-item"><input type="checkbox" value="20" onchange="calcComplexity()"> Total Stent > 60mm</label>
+          <label class="check-item"><input type="checkbox" value="50" onchange="calcComplexity()"> Prior Stent Thrombosis</label>
+          <label class="check-item"><input type="checkbox" value="15" onchange="calcComplexity()"> CTO / Calcification</label>
+          <label class="check-item"><input type="checkbox" value="20" onchange="calcComplexity()"> Multivessel Disease</label>
+        </div>
+      </div>
+
+      <!-- BLEEDING -->
+      <div class="control-group">
+        <label>
+          Bleed Risk (PRECISE-DAPT)
+          <span class="val-display" id="lblScore">15</span>
+        </label>
+        <input type="range" id="scoreInput" min="0" max="60" value="15" step="1" oninput="updateBleed()">
+        <div style="font-size:0.65rem; color:#666; display:flex; justify-content:space-between;">
+          <span>Robust</span><span>Frail</span>
+        </div>
+      </div>
+
+      <!-- SENSITIVITY -->
+      <div class="control-group" style="flex:1; min-height: 120px;">
+        <label>Sensitivity Analysis (Exclude)</label>
+        <div class="trial-list" id="trialList">
+          <!-- JS Injected -->
+        </div>
+      </div>
+
+      <button id="runBtn" class="run-btn" onclick="startSimulation()">
+        <div class="loader"></div>
+        <span>Synthesize Evidence</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- CENTER: STAGE -->
+  <main class="main-stage">
+    <div class="narrative-container">
+      <div id="dynamicHeadline" class="narrative-headline">Initializing Engine...</div>
+      <div class="narrative-sub">
+        <span id="dynamicSubhead">Calculating probabilistic outcomes...</span>
+        <span id="lblRecBadge" class="rec-badge">--</span>
+      </div>
+    </div>
+
+    <!-- 1. THRESHOLD SENSITIVITY (NEW V5.0) -->
+    <div class="viz-grid full-width">
+      <div class="viz-container full-width" style="height: 240px; min-height: 240px;">
+        <div class="viz-header">
+          <span class="viz-title">Tipping Point Analysis</span>
+          <span class="viz-title" style="color:var(--text-main)">Net Benefit by Harm Weight</span>
+        </div>
+        <canvas id="thresholdCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- 2. WAFFLE -->
+    <div class="waffle-wrapper">
+      <div class="viz-container" style="background:transparent; border:none; box-shadow:none; min-height:auto;">
+        <div style="display:flex; justify-content:center; margin-bottom:15px;">
+          <canvas id="waffleCanvas" style="max-width:480px; height:220px;"></canvas>
+        </div>
+        <div class="waffle-legend">
+          <div class="legend-item"><span class="dot" style="background:var(--benefit);"></span> Benefit</div>
+          <div class="legend-item"><span class="dot" style="background:var(--accent);"></span> Harm</div>
+          <div class="legend-item"><span class="dot" style="background:#333;"></span> Neutral</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. QUADRANT & TIME -->
+    <div class="viz-grid">
+      <div class="viz-container">
+        <div class="viz-header"><span class="viz-title">Safety-Efficacy Quadrant</span></div>
+        <canvas id="scatterCanvas"></canvas>
+      </div>
+      
+      <div class="viz-container">
+        <div class="viz-header"><span class="viz-title">Digital Twin: Time Horizon</span></div>
+        <canvas id="timeCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- 4. FOREST & DISTRIBUTION -->
+    <div class="viz-grid">
+      <div class="viz-container">
+        <div class="viz-header"><span class="viz-title">Trial Evidence (Ischemia)</span></div>
+        <canvas id="forestCanvas"></canvas>
+      </div>
+      <div class="viz-container">
+        <div class="viz-header"><span class="viz-title">Net Clinical Benefit Distribution</span></div>
+        <canvas id="histCanvas"></canvas>
+      </div>
+    </div>
+
+    <!-- REPORT -->
+    <div class="report-section">
+      <div class="report-inner">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 style="color:#fff; font-size:1.2rem;">Generated Clinical Note</h2>
+          <button class="copy-btn" style="width:auto;" onclick="copyReport()">📋 Copy</button>
+        </div>
+        <div id="reportContent"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT: METRICS -->
+  <aside class="sidebar-right">
+    <div class="sidebar-content">
+      <h2 style="font-size:0.8rem; font-weight:700; color:#fff; text-transform:uppercase; letter-spacing:0.05em;">Real-Time Analysis</h2>
+
+      <div class="metric-card" id="cardNCB">
+        <div class="m-title">Net Clinical Benefit</div>
+        <div class="m-val" id="valNCB">--</div>
+        <div class="m-sub">Weighted Absolute Gain</div>
+      </div>
+
+      <div class="metric-card neutral">
+        <div class="m-title">Probability of Benefit</div>
+        <div class="m-val" id="valProb" style="color: var(--benefit);">--</div>
+        <div class="m-sub">Confidence Level</div>
+      </div>
+
+      <div style="margin-top:15px; padding-top:15px; border-top:1px solid var(--border);">
+        <h3 class="m-title" style="margin-bottom:10px;">Clinical Impact</h3>
+        
+        <div class="metric-card pos" style="margin-bottom:8px;">
+          <div class="m-title" style="color:var(--benefit);">NNT (Ischemia)</div>
+          <div class="m-val" id="valNNT">--</div>
+        </div>
+
+        <div class="metric-card neg">
+          <div class="m-title" style="color:var(--accent);">NNH (Bleeding)</div>
+          <div class="m-val" id="valNNH">--</div>
+        </div>
+      </div>
+
+      <div class="metric-card neutral" style="margin-top: 20px; background:transparent; border:1px solid var(--border);">
+        <div class="m-title">Tipping Point</div>
+        <div class="m-val" id="valTip" style="font-size:1.2rem;">--</div>
+        <div class="m-sub">Harm Weight Threshold</div>
+      </div>
+
+      <!-- Hidden Inputs -->
+      <input type="hidden" id="baseB" value="4.0">
+      <input type="hidden" id="baseH" value="1.2">
+      <input type="hidden" id="harmWeight" value="1.0"> <!-- Default, but we scan range -->
+    </div>
+  </aside>
+</div>
+
+<!-- WORKER -->
+<script id="worker-code" type="javascript/worker">
+  self.onmessage = function(e) {
+    const { trials, baseB, baseH, weightH, nSims, complexityScore, strategy, indication, excludedIds } = e.data;
+    
+    // 1. Filter
+    const activeTrials = trials.filter(t => !excludedIds.includes(t.id));
+    if(activeTrials.length === 0) { self.postMessage({type:'error'}); return; }
+
+    // 2. Modifiers
+    const indicationMod = indication === 'ccs' ? 0.7 : 1.0;
+    // V4.1 Correction: Complex (100) -> 1.2x Benefit. Simple (0) -> 0.8x Benefit.
+    const complexMod = 0.8 + ((complexityScore / 100) * 0.4); 
+    const totalIsoMod = indicationMod * complexMod;
+
+    // 3. Process Trials
+    const processedTrials = activeTrials.map(t => {
+      let bLog = t.logOR_benefit * totalIsoMod;
+      let hLog = t.logOR_harm; 
+      
+      if (strategy === 'short') {
+        bLog = -bLog; // Ben -> Harm
+        hLog = -hLog; // Harm -> Ben
+      }
+      return { ...t, logOR_benefit: bLog, logOR_harm: hLog };
+    });
+
+    // 4. REML Meta-Analysis
+    const reB = runREML(processedTrials, 'logOR_benefit', 'SE_benefit');
+    const reH = runREML(processedTrials, 'logOR_harm', 'SE_harm');
+
+    // 5. Monte Carlo Core
+    // We perform one heavy simulation pass to get distributions of Isch/Bleed DELTAS.
+    // Then we reuse these deltas to calculate NCB at various weights instantly.
+    
+    const deltas = { isch: [], bleed: [] };
+    const plotPoints = [];
+    let sumB = 0, sumH = 0;
+    
+    const sdB = Math.sqrt(reB.se_pool**2 + reB.tau2); 
+    const sdH = Math.sqrt(reH.se_pool**2 + reH.tau2); 
+    const rho = 0.2; 
+    const sqrtRho = Math.sqrt(1 - rho*rho);
+
+    for(let i=0; i<nSims; i++) {
+      let u=0, v=0;
+      while(u===0) u=Math.random(); while(v===0) v=Math.random();
+      const z1 = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+      while(u===0) u=Math.random(); while(v===0) v=Math.random();
+      const z2 = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+
+      const lB = reB.mu + sdB * z1;
+      const lH = reH.mu + sdH * (rho * z1 + sqrtRho * z2);
+
+      const deltaIsch = probFromLogOR(baseB, lB);
+      const deltaBleed = probFromLogOR(baseH, lH); 
+      
+      deltas.isch.push(deltaIsch);
+      deltas.bleed.push(deltaBleed);
+      
+      sumB += deltaIsch; sumH += deltaBleed;
+
+      if(i % 25 === 0 && plotPoints.length < 1200) {
+        plotPoints.push({ x: deltaBleed*100, y: deltaIsch*100 });
+      }
+    }
+
+    const meanB = sumB / nSims;
+    const meanH = sumH / nSims;
+
+    // 6. Threshold Sensitivity (Tipping Point)
+    // Calculate Mean NCB across weights 0.5 to 5.0
+    const thresholds = [];
+    let tippingPoint = null;
+    let prevNCB = null;
+
+    for(let w = 0.5; w <= 5.0; w += 0.1) {
+        // NCB = IschGain + (BleedGain * w)
+        // Note: BleedGain is usually negative if Extended Strategy (Harm).
+        const ncb = meanB + (meanH * w);
+        thresholds.push({ w: w, val: ncb });
+        
+        // Detect zero crossing
+        if (prevNCB !== null) {
+            if ((prevNCB > 0 && ncb < 0) || (prevNCB < 0 && ncb > 0)) {
+                tippingPoint = w - 0.05; // approx mid
+            }
+        }
+        prevNCB = ncb;
+    }
+
+    // 7. Distribution for Current Weight (1.0 default or user selected)
+    // We usually default to 1.0 for histogram display unless parameterized
+    const currentW = weightH; 
+    const ncbHistValues = [];
+    let posCount = 0;
+    
+    for(let i=0; i<nSims; i++) {
+        const ncb = deltas.isch[i] + (deltas.bleed[i] * currentW);
+        ncbHistValues.push(ncb);
+        if(ncb > 0) posCount++;
+    }
+    ncbHistValues.sort((a,b)=>a-b);
+    const histData = buildHistogram(ncbHistValues, 50);
+
+    // 8. Time Data (Digital Twin)
+    const timeData = [];
+    for(let m=0; m<=36; m++) {
+        const tIsch = (1 - Math.exp(-m/12));
+        const tBleed = (m/12);
+        const bi = baseB * 100 * (tIsch / (1-Math.exp(-3)));
+        const bb = baseH * 100 * (tBleed / 3);
+        const ti = (baseB - meanB) * 100 * (tIsch / (1-Math.exp(-3)));
+        const tb = (baseH - meanH) * 100 * (tBleed / 3);
+        timeData.push({ m, bi, bb, ti, tb });
+    }
+
+    self.postMessage({ 
+      type: 'complete', 
+      data: { 
+        reB, reH, plotPoints, meanB, meanH, 
+        posCount, timeData, strategy, 
+        thresholds, tippingPoint, histData 
+      } 
+    });
+  };
+
+  function probFromLogOR(base, logOR) {
+    const odds = base / (1-base);
+    const newOdds = odds * Math.exp(logOR);
+    const treated = newOdds / (1+newOdds);
+    return base - treated; 
+  }
+
+  function buildHistogram(arr, bins) {
+    if(arr.length === 0) return [];
+    const min = arr[0], max = arr[arr.length-1];
+    const range = max - min;
+    const step = range / bins;
+    const res = [];
+    let current = min;
+    let idx = 0;
+    for(let i=0; i<bins; i++) {
+      let count = 0;
+      const next = current + step;
+      while(idx < arr.length && arr[idx] < next) { count++; idx++; }
+      res.push({ x: current + step/2, y: count });
+      current = next;
+    }
+    return res;
+  }
+
+  function runREML(data, kEff, kSe) {
+    const y = data.map(d=>d[kEff]);
+    const v = data.map(d=>d[kSe]**2);
+    let tau2 = 0.02; 
+    for(let i=0; i<20; i++) {
+      const w = v.map(x => 1/(x+tau2));
+      const sw = w.reduce((a,b)=>a+b,0);
+      const sw2 = w.reduce((a,b)=>a+b*b,0);
+      const mu = w.reduce((a,b,j)=>a+b*y[j],0)/sw;
+      let q = 0;
+      y.forEach((val,j) => q += w[j]*w[j]*((val-mu)**2 - v[j] - tau2 + 1/sw));
+      const info = 0.5 * sw2;
+      const d = (0.5 * q) / Math.max(info, 1e-12);
+      tau2 = Math.max(0, tau2 + d); 
+    }
+    const w = v.map(x => 1/(x+tau2));
+    const sw = w.reduce((a,b)=>a+b,0);
+    return {
+      mu: w.reduce((a,b,j)=>a+b*y[j],0)/sw,
+      se_pool: Math.sqrt(1/sw),
+      tau2,
+      forest: data.map(d => ({ id: d.id, val: d[kEff], lo: d[kEff]-1.96*d[kSe], hi: d[kEff]+1.96*d[kSe] }))
+    };
+  }
+</script>
+
+<!-- APP LOGIC -->
+<script>
+  const TRIALS = [
+    { id: "PEGASUS",         logOR_benefit: -0.16, SE_benefit: 0.06, logOR_harm: 0.84, SE_harm: 0.12 },
+    { id: "DAPT Study",      logOR_benefit: -0.21, SE_benefit: 0.05, logOR_harm: 0.65, SE_harm: 0.09 },
+    { id: "PRODIGY",         logOR_benefit: -0.09, SE_benefit: 0.15, logOR_harm: 0.70, SE_harm: 0.20 },
+    { id: "ITALIC",          logOR_benefit: 0.05,  SE_benefit: 0.20, logOR_harm: 0.50, SE_harm: 0.30 },
+    { id: "SECURITY",        logOR_benefit: 0.02,  SE_benefit: 0.19, logOR_harm: 0.20, SE_harm: 0.35 },
+    { id: "TWILIGHT",        logOR_benefit: -0.01, SE_benefit: 0.14, logOR_harm: 0.58, SE_harm: 0.15 }, 
+    { id: "GLOBAL LEADERS",  logOR_benefit: -0.13, SE_benefit: 0.08, logOR_harm: 0.00, SE_harm: 0.10 },
+    { id: "TICO",            logOR_benefit: 0.05,  SE_benefit: 0.18, logOR_harm: 0.58, SE_harm: 0.19 }, 
+    { id: "STOPDAPT-2",      logOR_benefit: 0.23,  SE_benefit: 0.22, logOR_harm: 1.35, SE_harm: 0.25 },
+    { id: "SMART-CHOICE",    logOR_benefit: 0.00,  SE_benefit: 0.16, logOR_harm: 0.45, SE_harm: 0.21 },
+    { id: "MASTER-DAPT",     logOR_benefit: 0.02,  SE_benefit: 0.12, logOR_harm: 0.45, SE_harm: 0.15 } 
+  ];
+
+  const blob = new Blob([document.getElementById('worker-code').textContent], {type: "text/javascript"});
+  const worker = new Worker(window.URL.createObjectURL(blob));
+  
+  let state = {
+    strategy: 'extended',
+    indication: 'acs',
+    complexity: 0,
+    excludedIds: []
+  };
+
+  worker.onmessage = e => {
+    if (e.data.type === 'complete') {
+      const data = e.data.data;
+      drawWaffle(data);
+      drawScatter(data);
+      drawForest(data.reB);
+      drawTimeHorizon(data.timeData);
+      drawThreshold(data.thresholds, data.tippingPoint);
+      updateMetrics(data);
+      document.getElementById('runBtn').classList.remove('processing');
+      document.getElementById('runBtn').disabled = false;
+    }
+  };
+
+  // --- INIT ---
+  window.onload = () => {
+    initTrialList();
+    calcComplexity(); 
+    updateBleed(); // Sync Bleed slider and start sim
+  };
+
+  // --- ACTIONS ---
+  function setStrategy(s) {
+    state.strategy = s;
+    document.getElementById('btnShort').className = s === 'short' ? 'toggle-btn active' : 'toggle-btn';
+    document.getElementById('btnExt').className = s === 'extended' ? 'toggle-btn active' : 'toggle-btn';
+    startSimulation();
+  }
+
+  function setIndication(ind) {
+    state.indication = ind;
+    document.getElementById('btnACS').className = ind === 'acs' ? 'toggle-btn active' : 'toggle-btn';
+    document.getElementById('btnCCS').className = ind === 'ccs' ? 'toggle-btn active' : 'toggle-btn';
+    startSimulation();
+  }
+
+  function calcComplexity() {
+    const checks = document.querySelectorAll('#anatomyGrid input:checked');
+    let score = 0;
+    checks.forEach(c => score += parseInt(c.value));
+    score = Math.min(100, score);
+    
+    state.complexity = score;
+    document.getElementById('lblComplexScore').textContent = `Score: ${score}`;
+    
+    const baseB = 3.0 + (score / 100) * 8.0;
+    document.getElementById('baseB').value = baseB.toFixed(1);
+    startSimulation();
+  }
+
+  function updateBleed() {
+    const score = parseInt(document.getElementById('scoreInput').value);
+    document.getElementById('lblScore').textContent = score;
+    const baseH = 0.5 + Math.pow(score/12, 1.8);
+    document.getElementById('baseH').value = baseH.toFixed(1);
+    startSimulation(); 
+  }
+
+  function initTrialList() {
+    const list = document.getElementById('trialList');
+    TRIALS.forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'trial-item';
+      div.innerHTML = `<label><input type="checkbox" checked onchange="toggleTrial('${t.id}')"> ${t.id}</label>`;
+      list.appendChild(div);
+    });
+  }
+
+  function toggleTrial(id) {
+    if (state.excludedIds.includes(id)) {
+      state.excludedIds = state.excludedIds.filter(x => x !== id);
+    } else {
+      state.excludedIds.push(id);
+    }
+    startSimulation();
+  }
+
+  function setPersona(p) {
+    const inputs = document.querySelectorAll('#anatomyGrid input');
+    inputs.forEach(i => i.checked = false);
+    
+    if (p === 'stemi') {
+      setIndication('acs');
+      inputs[0].checked = true; // LM
+      inputs[3].checked = true; // Prior ST
+      document.getElementById('scoreInput').value = 10; 
+    } else if (p === 'afib') {
+      setIndication('ccs');
+      document.getElementById('scoreInput').value = 45; 
+    } else if (p === 'complex') {
+      setIndication('ccs');
+      inputs[0].checked = true; 
+      inputs[1].checked = true;
+      inputs[5].checked = true;
+      document.getElementById('scoreInput').value = 20;
+    }
+    calcComplexity(); // Will trigger Sim via baseB calc
+    updateBleed(); // Trigger sim via baseH calc
+  }
+
+  function startSimulation() {
+    document.getElementById('runBtn').classList.add('processing');
+    document.getElementById('runBtn').disabled = true;
+
+    worker.postMessage({
+      trials: TRIALS,
+      baseB: parseFloat(document.getElementById('baseB').value)/100,
+      baseH: parseFloat(document.getElementById('baseH').value)/100,
+      weightH: 1.0,
+      nSims: 40000,
+      complexityScore: state.complexity,
+      strategy: state.strategy,
+      indication: state.indication,
+      excludedIds: state.excludedIds
+    });
+  }
+
+  function copyReport() {
+    const txt = document.getElementById('reportContent').innerText + 
+      "\n\nGenerated by CardioSynthesizer v5.0";
+    navigator.clipboard.writeText(txt).then(() => alert("Note copied."));
+  }
+
+  // --- METRICS & LOGIC ---
+  function updateMetrics(data) {
+    const { meanB, meanH, positiveCount, strategy, tippingPoint } = data;
+    const prob = (positiveCount / 40000) * 100;
+    
+    // 1. Guideline Logic
+    const badge = document.getElementById('lblRecBadge');
+    let recClass = "Class IIb (Uncertain)";
+    let recStyle = "c3";
+    
+    if (prob > 90) { recClass = "Class I (Strong)"; recStyle = "c1"; }
+    else if (prob > 75) { recClass = "Class IIa (Reasonable)"; recStyle = "c2a"; }
+    else if (prob > 50) { recClass = "Class IIb (Consider)"; recStyle = "c2b"; }
+    else { recClass = "Class III (Against)"; recStyle = "c3"; }
+    
+    badge.className = `rec-badge ${recStyle}`;
+    badge.innerHTML = recClass;
+
+    // Headline
+    const stratName = strategy === 'extended' ? 'Extended DAPT' : 'Short DAPT';
+    let h = "Clinical Equipoise";
+    if (prob > 75) h = `${stratName} Preferred`;
+    else if (prob < 25) h = "Alternative Strategy Preferred";
+    
+    document.getElementById('dynamicHeadline').textContent = h;
+    document.getElementById('dynamicSubhead').textContent = `Probability of Net Benefit: ${prob.toFixed(1)}%`;
+
+    // Metrics
+    const ncb = meanB + meanH; 
+    document.getElementById('valNCB').textContent = (ncb * 100).toFixed(2) + "%";
+    document.getElementById('cardNCB').className = ncb > 0 ? 'metric-card pos' : 'metric-card neg';
+    document.getElementById('valProb').textContent = prob.toFixed(1) + "%";
+    
+    const nnt = meanB > 0.001 ? (1/meanB).toFixed(0) : "N/A";
+    const nnh = meanH < -0.001 ? (1/Math.abs(meanH)).toFixed(0) : "N/A";
+    
+    // Logic flip for display if strategy is short
+    // If Short: Benefit is Bleed Safety (meanH > 0). Harm is Ischemia (meanB < 0).
+    if (strategy === 'short') {
+       document.getElementById('valNNT').textContent = meanH > 0.001 ? (1/meanH).toFixed(0) : "N/A"; // Safety NNT
+       document.getElementById('valNNH').textContent = meanB < -0.001 ? (1/Math.abs(meanB)).toFixed(0) : "N/A"; // Isch NNH
+    } else {
+       document.getElementById('valNNT').textContent = nnt;
+       document.getElementById('valNNH').textContent = nnh;
+    }
+
+    const tipTxt = tippingPoint ? `${tippingPoint.toFixed(1)}x` : "> 5.0x";
+    document.getElementById('valTip').textContent = tipTxt;
+
+    document.getElementById('reportContent').innerHTML = `
+      <p><strong>Profile:</strong> ${state.indication.toUpperCase()}, Score ${state.complexity}, PRECISE-DAPT ${document.getElementById('scoreInput').value}.</p>
+      <p><strong>Analysis:</strong> <strong>${stratName}</strong> achieves a ${recClass} recommendation level (Prob: ${prob.toFixed(1)}%).</p>
+      <p><strong>Impact:</strong> Projected ${(meanB*100).toFixed(1)}% absolute ischemic reduction vs ${(Math.abs(meanH)*100).toFixed(1)}% bleeding change.</p>
+      <p><strong>Robustness:</strong> Decision holds until Harm Weight exceeds <strong>${tipTxt}</strong>.</p>
+    `;
+  }
+
+  // --- DRAWING ---
+  function setupCanvas(id) {
+    const c = document.getElementById(id);
+    const rect = c.getBoundingClientRect();
+    c.width = rect.width * 2; c.height = rect.height * 2;
+    const ctx = c.getContext('2d');
+    ctx.scale(2, 2);
+    return { ctx, w: rect.width, h: rect.height };
+  }
+
+  function drawThreshold(thresholds, tippingPoint) {
+    const { ctx, w, h } = setupCanvas('thresholdCanvas');
+    const pad={l:40, r:20, t:20, b:30};
+    
+    // Scales
+    const minX = 0.5, maxX = 5.0;
+    const maxY = Math.max(...thresholds.map(d=>Math.abs(d.val))) * 1.2;
+    const sx = v => pad.l + ((v-minX)/(maxX-minX))*(w-pad.l-pad.r);
+    const sy = v => (h/2) - (v/maxY)*(h/2 - pad.t);
+
+    // Zero Line
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l, h/2); ctx.lineTo(w-pad.r, h/2); ctx.stroke();
+
+    // Curve
+    ctx.beginPath();
+    ctx.lineWidth=3;
+    thresholds.forEach((d, i) => {
+        const x = sx(d.w); const y = sy(d.val);
+        if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    // Gradient Stroke
+    const grad = ctx.createLinearGradient(pad.l, 0, w-pad.r, 0);
+    grad.addColorStop(0, thresholds[0].val > 0 ? '#34d399' : '#f87171');
+    grad.addColorStop(1, thresholds[thresholds.length-1].val > 0 ? '#34d399' : '#f87171');
+    ctx.strokeStyle = grad;
+    ctx.stroke();
+
+    // Tipping Point
+    if(tippingPoint) {
+        const tx = sx(tippingPoint);
+        ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(tx, h/2, 4, 0, 6.28); ctx.fill();
+        ctx.fillStyle='#999'; ctx.font='10px Inter'; ctx.textAlign='center';
+        ctx.fillText(`Tip: ${tippingPoint.toFixed(1)}x`, tx, h/2 - 10);
+    }
+
+    // Labels
+    ctx.fillStyle='#666'; ctx.textAlign='center';
+    ctx.fillText("Harm Weight (Bleed Disutility)", w/2, h-10);
+    ctx.fillText("Net Benefit", 20, pad.t);
+  }
+
+  function drawWaffle(data) {
+    const { ctx, w, h } = setupCanvas('waffleCanvas');
+    const dots = 200;
+    let nBen=0, nHarm=0;
+
+    if(data.strategy === 'extended') {
+       nBen = Math.max(0, Math.round(data.meanB * 3 * dots)); 
+       nHarm = Math.max(0, Math.round(Math.abs(data.meanH) * 3 * dots));
+    } else {
+       nBen = Math.max(0, Math.round(data.meanH * 5 * dots)); // Safety benefit
+       nHarm = Math.max(0, Math.round(Math.abs(data.meanB) * 5 * dots));
+    }
+
+    const cols=20, rows=10, gap=3;
+    const size = (w - (cols-1)*gap)/cols * 0.8;
+    const offX = (w - (cols*size + (cols-1)*gap))/2;
+    const offY = (h - (rows*size + (rows-1)*gap))/2;
+
+    let b=0, hr=0;
+    for(let y=0; y<rows; y++){
+      for(let x=0; x<cols; x++){
+        let color = '#333';
+        if(b < nBen) { color='#34d399'; b++; }
+        else if(hr < nHarm) { color='#f87171'; hr++; }
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(offX+x*(size+gap), offY+y*(size+gap), size/2, 0, 6.28); ctx.fill();
+      }
+    }
+  }
+
+  function drawScatter(data) {
+    const { ctx, w, h } = setupCanvas('scatterCanvas');
+    const pad=40; const cx=w/2; const cy=h/2;
+    
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(cx, 10); ctx.lineTo(cx, h-10); ctx.moveTo(10, cy); ctx.lineTo(w-10, cy); ctx.stroke();
+    
+    ctx.fillStyle='#666'; ctx.font='10px Inter'; ctx.textAlign='center';
+    ctx.fillText("Safety (Bleed Avoided)", w-60, cy+15);
+    ctx.save(); ctx.translate(cx-10, 20); ctx.rotate(-1.57); ctx.fillText("Efficacy (Isch Avoided)", 0,0); ctx.restore();
+
+    data.plotPoints.forEach(p => {
+      const x = cx + p.x * 25; 
+      const y = cy - p.y * 25;
+      ctx.fillStyle = (p.y + p.x > 0) ? 'rgba(52, 211, 153, 0.4)' : 'rgba(248, 113, 113, 0.4)';
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, 6.28); ctx.fill();
+    });
+  }
+
+  function drawForest(meta) {
+    const { ctx, w, h } = setupCanvas('forestCanvas');
+    const pad={l:90, r:20, t:20, b:20};
+    const rowH = (h-40)/(meta.forest.length+2);
+    const sx = v => pad.l + ((v+1.5)/3)*(w-pad.l-pad.r); 
+
+    ctx.strokeStyle='#444'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(sx(0), pad.t); ctx.lineTo(sx(0), h-pad.b); ctx.stroke();
+
+    meta.forest.forEach((f, i) => {
+      const y = pad.t + i*rowH + rowH/2;
+      ctx.fillStyle='#aaa'; ctx.textAlign='right'; ctx.font='10px Inter';
+      ctx.fillText(f.id, pad.l-10, y+3);
+      
+      ctx.strokeStyle = f.val < 0 ? '#34d399' : '#f87171';
+      ctx.beginPath(); ctx.moveTo(sx(f.lo), y); ctx.lineTo(sx(f.hi), y); ctx.stroke();
+      ctx.fillRect(sx(f.val)-2, y-2, 4, 4);
+    });
+    
+    const y = h-15;
+    const cx = sx(meta.mu);
+    const hw = (sx(meta.mu+1.96*meta.se_pool) - sx(meta.mu-1.96*meta.se_pool))/2;
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.moveTo(cx-hw, y); ctx.lineTo(cx, y-4); ctx.lineTo(cx+hw, y); ctx.lineTo(cx, y+4); ctx.fill();
+  }
+
+  function drawTimeHorizon(timeData) {
+    const { ctx, w, h } = setupCanvas('timeCanvas');
+    const pad={l:30, r:20, t:20, b:30};
+    
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); 
+    ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, h-pad.b); ctx.lineTo(w-pad.r, h-pad.b);
+    ctx.stroke();
+    
+    ctx.fillStyle='#666'; ctx.textAlign='center'; ctx.font='10px Inter';
+    ctx.fillText("Months", w/2, h-10);
+    ctx.fillText("36m", w-pad.r, h-10);
+    
+    const maxVal = 12; 
+    const sx = m => pad.l + (m/36)*(w-pad.l-pad.r);
+    const sy = v => (h-pad.b) - (v/maxVal)*(h-pad.t-pad.b);
+
+    // Alternative (Dashed)
+    ctx.setLineDash([4,4]);
+    drawCurve(ctx, timeData, 'bi', '#34d399', 0.3, sx, sy);
+    drawCurve(ctx, timeData, 'bb', '#f87171', 0.3, sx, sy);
+    
+    // Strategy (Solid)
+    ctx.setLineDash([]);
+    drawCurve(ctx, timeData, 'ti', '#34d399', 1.0, sx, sy);
+    drawCurve(ctx, timeData, 'tb', '#f87171', 1.0, sx, sy);
+    
+    ctx.fillStyle='#34d399'; ctx.fillText("Ischemia", pad.l+30, pad.t+10);
+    ctx.fillStyle='#f87171'; ctx.fillText("Bleeding", pad.l+30, pad.t+25);
+  }
+
+  function drawCurve(ctx, data, key, color, alpha, sx, sy) {
+    ctx.beginPath();
+    ctx.strokeStyle = color; ctx.globalAlpha = alpha; ctx.lineWidth = 2;
+    data.forEach((d, i) => {
+      const x = sx(d.m); const y = sy(d[key]);
+      if(i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+  }
+
+  function drawHist(bins) {
+    const { ctx, w, h } = setupCanvas('histCanvas');
+    const pad = 30;
+    const maxH = Math.max(...bins.map(b=>b.y));
+    const scaleX = i => pad + (i/bins.length)*(w-2*pad);
+    const scaleY = v => (h-pad) - (v/maxH)*(h-2*pad);
+    const barW = (w-2*pad)/bins.length;
+
+    bins.forEach((b, i) => {
+      ctx.fillStyle = b.x > 0 ? '#34d399' : '#f87171';
+      const bh = scaleY(b.y);
+      ctx.fillRect(scaleX(i), bh, barW, (h-pad)-bh);
+    });
+    
+    const zeroIdx = bins.findIndex(b => b.x > 0);
+    const zX = scaleX(zeroIdx || bins.length/2);
+    ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(zX, pad); ctx.lineTo(zX, h-pad); ctx.stroke();
+  }
+
+</script>
+</body>
+</html>
