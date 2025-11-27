@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CardioSynthesizer V5.4: Reanalysis Engine</title>
+  <title>CardioSynthesizer V5.5: Reanalysis Engine</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
   <style>
-    /* --- Theme: "Hemo-Dynamic V5.4" --- */
+    /* --- Theme: "Hemo-Dynamic V5.5" --- */
     :root {
       --bg-dark: #050505;
       --bg-panel: #0f1014;
@@ -121,7 +121,7 @@
   <aside class="sidebar-left">
     <div class="sidebar-content">
       <div>
-        <h1>CardioSynth <span style="color:var(--benefit)">v5.4</span></h1>
+        <h1>CardioSynth <span style="color:var(--benefit)">v5.5</span></h1>
         <p style="font-size: 0.75rem; color: var(--text-muted);">Reanalysis & Simulation Engine</p>
       </div>
 
@@ -160,13 +160,12 @@
       <div class="assumptions-panel">
         <h3><span>⚡</span> Reanalysis Parameters</h3>
         
-        <!-- Replaced Interaction Strength with Explicit Beta -->
         <div class="slider-row">
           <div class="slider-lbl">
-            <span>Complexity Beta (&beta;) <span class="info-icon" title="Hypothetical coefficient: Influence of complexity score on effect size.">ⓘ</span></span>
+            <span>Complexity Beta (&beta;) <span class="info-icon" title="Effect modifier: Each 10-point increase in complexity score changes the log-OR by (Beta/10). Example: Beta=0.5, Complexity=70 → logOR multiplied by 1.10. Set to 0 for no interaction.">ⓘ</span></span>
             <span id="lblBeta">0.5</span>
           </div>
-          <input type="range" id="betaInput" min="0.0" max="1.0" step="0.1" value="0.5">
+          <input type="range" id="betaInput" min="0.0" max="2.0" step="0.1" value="0.5">
           <div style="font-size:0.6rem; color:#666;">Interaction strength (0 = No Interaction).</div>
         </div>
 
@@ -178,6 +177,11 @@
           <input type="range" id="rhoInput" min="-1.0" max="1.0" step="0.1" value="0.2">
           <div style="font-size:0.6rem; color:#666;">Ischemia/Bleeding dependency.</div>
         </div>
+        
+        <label style="display:flex; align-items:center; gap:8px; font-size:0.7rem; margin-top:10px; color:var(--text-muted); cursor:pointer;">
+          <input type="checkbox" id="autoRun" checked style="accent-color:var(--benefit);">
+          <span>Auto-run on parameter changes</span>
+        </label>
       </div>
 
       <!-- SENSITIVITY -->
@@ -315,14 +319,10 @@
     const activeTrials = trials.filter(t => !excludedIds.includes(t.id));
     if(activeTrials.length === 0) { self.postMessage({type:'error'}); return; }
 
-    // 2. Modifiers (Now using explicit Beta Input)
-    // Beta input 0.0 to 1.0. 
-    // We normalize complexity (-50 to +50).
-    // Interaction effect: High complexity increases benefit (more negative LogOR for extended).
-    
-    const indBase = indication === 'ccs' ? -0.2 : 0.0; 
-    // Simplified interaction model:
+    // 2. Modifiers
+    // TRANSPARENCY FIX: No hidden scalars. 
     // Effect Modification = (ScoreCentered / 100) * Beta
+    // Score 0-100. Centered at 50. Range -0.5 to +0.5.
     const complexMod = ((complexityScore - 50) / 100) * betaInput;
 
     // 3. Process Trials
@@ -331,14 +331,12 @@
       
       // Apply Interaction if Strategy is Extended
       if (strategy === 'extended') {
-         // If complexMod is positive (high complexity), we want bLog to be MORE negative (better).
-         // Assuming bLog is negative (e.g. -0.2).
-         // -0.2 * (1 + 0.1) = -0.22.
-         // If complexMod is negative (low complexity), -0.2 * (1 - 0.1) = -0.18.
-         bLog = bLog * (1 + (complexMod * 2)); 
+         // Direct application of Beta. No hidden multipliers.
+         // Example: If ComplexMod = 0.25 (High complexity), and logOR is negative (benefit),
+         // we multiply by (1 + 0.25) to increase benefit magnitude.
+         bLog = bLog * (1 + complexMod); 
          
-         // Indication Mod (CCS has less benefit)
-         if(indication === 'ccs') bLog = bLog * 0.8; 
+         // Note: CCS penalty removed to maintain strict transparency.
       }
       
       let hLog = t.logOR_harm; 
@@ -354,6 +352,9 @@
     // 4. DerSimonian-Laird Random Effects Meta-Analysis
     const reB = runREML(processedTrials, 'logOR_benefit', 'SE_benefit');
     const reH = runREML(processedTrials, 'logOR_harm', 'SE_harm');
+    
+    // Egger's Test for Small Study Effects (Publication Bias)
+    const egger = eggerTest(processedTrials, 'logOR_benefit', 'SE_benefit');
 
     // 5. Monte Carlo Core
     const plotPoints = [];
@@ -378,7 +379,6 @@
       
       sumB += deltaIsch; sumH += deltaBleed;
 
-      // Histogram Data (Assuming Harm Weight = 1.0)
       const ncb = deltaIsch + deltaBleed;
       ncbValues.push(ncb);
 
@@ -429,7 +429,7 @@
 
     self.postMessage({ 
       type: 'complete', 
-      data: { reB, reH, plotPoints, meanB, meanH, positiveCount, timeData, strategy, thresholds, tippingPoint, rho, betaInput, histData, ncb_p025, ncb_p975 } 
+      data: { reB, reH, plotPoints, meanB, meanH, positiveCount, timeData, strategy, thresholds, tippingPoint, rho, betaInput, histData, ncb_p025, ncb_p975, egger } 
     });
   };
 
@@ -439,6 +439,37 @@
     const newOdds = odds * Math.exp(logOR);
     const newProb = newOdds / (1 + newOdds);
     return newProb - base;
+  }
+
+  // Egger's Test (Regression of effect on precision)
+  function eggerTest(data, kEff, kSe) {
+    if(data.length < 3) return null;
+    const effects = data.map(d => d[kEff]);
+    const precision = data.map(d => 1/d[kSe]);
+    const n = effects.length;
+    
+    const meanP = precision.reduce((a,b)=>a+b)/n;
+    const meanE = effects.reduce((a,b)=>a+b)/n;
+    
+    let num=0, den=0;
+    for(let i=0; i<n; i++) {
+        num += (precision[i] - meanP) * (effects[i] - meanE);
+        den += (precision[i] - meanP)**2;
+    }
+    const slope = num / den;
+    const intercept = meanE - slope * meanP;
+    
+    // T-stat for intercept
+    const residuals = effects.map((e, i) => e - (intercept + slope * precision[i]));
+    const ssr = residuals.reduce((a, b) => a + b*b, 0);
+    const syx = Math.sqrt(ssr / (n - 2));
+    const ssx = den; 
+    // SE of intercept
+    const se_int = syx * Math.sqrt(1/n + (meanP*meanP)/ssx);
+    const t = intercept / se_int;
+    const pval = (Math.abs(t) > 2.0) ? "<0.05" : ">0.05"; // Simplified approx
+    
+    return { intercept, pval };
   }
 
   // DerSimonian-Laird Estimator
@@ -535,6 +566,9 @@
     excludedIds: []
   };
 
+  // Global store for export
+  let lastResults = null;
+
   // Error Handling
   worker.onerror = function(err) {
       console.error(err);
@@ -550,10 +584,11 @@
     }
     if (e.data.type === 'complete') {
       const d = e.data.data;
+      lastResults = d; // Store for export
       drawScatter(d);
       drawTimeHorizon(d.timeData);
       drawThreshold(d.thresholds, d.tippingPoint);
-      drawForest(d.reB); 
+      drawForest(d.reB, d.egger); 
       drawHist(d.histData); 
       updateMetrics(d);
       generateMethodReport(d);
@@ -578,7 +613,7 @@
     updateBleed();
   };
 
-  // --- EVENT LISTENERS (No Inline) ---
+  // --- EVENT LISTENERS ---
   function initEventListeners() {
     document.getElementById('btnShort').addEventListener('click', () => setStrategy('short'));
     document.getElementById('btnExt').addEventListener('click', () => setStrategy('extended'));
@@ -592,9 +627,19 @@
       input.addEventListener('change', calcComplexity);
     });
     
-    document.getElementById('scoreInput').addEventListener('input', () => debounce(updateBleed, 300));
-    document.getElementById('betaInput').addEventListener('input', () => debounce(updateAssumptions, 300));
-    document.getElementById('rhoInput').addEventListener('input', () => debounce(updateAssumptions, 300));
+    // Auto-Run Check
+    document.getElementById('scoreInput').addEventListener('input', () => autoRunOrDebounce(updateBleed));
+    document.getElementById('betaInput').addEventListener('input', () => autoRunOrDebounce(updateAssumptions));
+    document.getElementById('rhoInput').addEventListener('input', () => autoRunOrDebounce(updateAssumptions));
+  }
+
+  function autoRunOrDebounce(fn) {
+     if(document.getElementById('autoRun').checked) {
+        debounce(fn, 300);
+     } else {
+        // Just update UI values without running sim
+        fn(true); 
+     }
   }
 
   // --- ACTIONS ---
@@ -602,17 +647,17 @@
     state.strategy = s;
     document.getElementById('btnShort').className = s === 'short' ? 'toggle-btn active' : 'toggle-btn';
     document.getElementById('btnExt').className = s === 'extended' ? 'toggle-btn active' : 'toggle-btn';
-    startSimulation();
+    if(document.getElementById('autoRun').checked) startSimulation();
   }
 
   function setIndication(ind) {
     state.indication = ind;
     document.getElementById('btnACS').className = ind === 'acs' ? 'toggle-btn active' : 'toggle-btn';
     document.getElementById('btnCCS').className = ind === 'ccs' ? 'toggle-btn active' : 'toggle-btn';
-    startSimulation();
+    if(document.getElementById('autoRun').checked) startSimulation();
   }
 
-  function calcComplexity() {
+  function calcComplexity(skipSim) {
     const checks = document.querySelectorAll('#anatomyGrid input:checked');
     let score = 0;
     checks.forEach(c => score += parseInt(c.value));
@@ -621,21 +666,24 @@
     document.getElementById('lblComplex').textContent = `Score: ${score}`;
     const baseB = 3.0 + (score / 100) * 8.0;
     document.getElementById('baseB').value = baseB.toFixed(1);
-    startSimulation();
+    
+    if(skipSim !== true && document.getElementById('autoRun').checked) startSimulation();
   }
 
-  function updateBleed() {
+  function updateBleed(skipSim) {
     const score = parseInt(document.getElementById('scoreInput').value);
     document.getElementById('lblScore').textContent = score;
     const baseH = 0.5 + Math.pow(score/12, 1.8);
     document.getElementById('baseH').value = baseH.toFixed(1);
-    startSimulation(); 
+    
+    if(skipSim !== true) startSimulation(); 
   }
   
-  function updateAssumptions() {
+  function updateAssumptions(skipSim) {
     document.getElementById('lblRho').textContent = document.getElementById('rhoInput').value;
     document.getElementById('lblBeta').textContent = document.getElementById('betaInput').value;
-    startSimulation();
+    
+    if(skipSim !== true) startSimulation();
   }
 
   function initTrialList() {
@@ -661,11 +709,10 @@
     } else {
       state.excludedIds.push(id);
     }
-    startSimulation();
+    if(document.getElementById('autoRun').checked) startSimulation();
   }
 
   function startSimulation() {
-    // Input Validation
     const baseB = parseFloat(document.getElementById('baseB').value);
     const baseH = parseFloat(document.getElementById('baseH').value);
     
@@ -692,16 +739,31 @@
   }
 
   function exportResults() {
-      const report = document.getElementById('reportContent').innerText;
+      if(!lastResults) { alert("Run simulation first."); return; }
       const data = {
           timestamp: new Date().toISOString(),
-          state: state,
-          inputs: {
+          version: "5.5",
+          parameters: {
+             strategy: state.strategy,
+             indication: state.indication,
+             complexity: state.complexity,
+             bleedingRisk: document.getElementById('scoreInput').value,
              rho: document.getElementById('rhoInput').value,
              beta: document.getElementById('betaInput').value,
-             bleedScore: document.getElementById('scoreInput').value
+             excludedTrials: state.excludedIds
           },
-          report: report
+          results: {
+             ncb: document.getElementById('valNCB').textContent,
+             ncb_CI_95: [lastResults.ncb_p025, lastResults.ncb_p975],
+             probability: document.getElementById('valProb').textContent,
+             nnt: document.getElementById('valNNT').textContent,
+             heterogeneity: {
+                 I2: lastResults.reB.I2,
+                 tau2: lastResults.reB.tau2
+             },
+             egger: lastResults.egger
+          },
+          report: document.getElementById('reportContent').innerText
       };
       
       const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -719,11 +781,13 @@
      const beta = d.betaInput.toFixed(2);
      const ncb = (d.meanB + d.meanH) * 100;
      const prob = (d.positiveCount / 40000) * 100;
+     const eggerTxt = d.egger ? `Egger's p${d.egger.pval}` : 'N/A';
      
      const txt = `
      REANALYSIS PROTOCOL:
      - Method: DerSimonian-Laird Random-Effects Meta-analysis with Monte Carlo Simulation (n=40,000).
      - Heterogeneity: Ischemia I²=${d.reB.I2.toFixed(1)}%, tau²=${d.reB.tau2.toFixed(3)}.
+     - Bias Detection: ${eggerTxt}.
      - Assumptions: Correlation(Isch, Bleed) = ${rho}; Complexity Beta = ${beta}.
      - Time Models: Ischemia modeled as exponential saturation; Bleeding as linear accumulation (Assumption).
      
@@ -890,7 +954,7 @@
     ctx.stroke(); ctx.globalAlpha = 1.0;
   }
 
-  function drawForest(meta) {
+  function drawForest(meta, egger) {
     const { ctx, w, h } = setupCanvas('forestCanvas');
     const pad={l:90, r:20, t:30, b:20};
     const rowH = (h-50)/(meta.forest.length+2);
@@ -899,6 +963,13 @@
     // Header Stats
     ctx.fillStyle='#888'; ctx.font='10px Inter'; ctx.textAlign='right';
     ctx.fillText(`I²=${meta.I2.toFixed(0)}% τ²=${meta.tau2.toFixed(3)}`, w-pad.r, 20);
+
+    // Egger's Badge
+    if(egger) {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = egger.pval === '<0.05' ? '#ef4444' : '#34d399';
+      ctx.fillText(`Egger's p${egger.pval}`, pad.l, 20);
+    }
 
     ctx.strokeStyle='#333'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(sx(0), pad.t); ctx.lineTo(sx(0), h-pad.b); ctx.stroke();
